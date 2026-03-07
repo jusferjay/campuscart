@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 import Navbar from "./components/Navbar";
@@ -15,6 +15,7 @@ const HIDE_NAVBAR = ["/", "/register"];
 function Layout({ children, cart }) {
   const location = useLocation();
   const hideNav = HIDE_NAVBAR.includes(location.pathname);
+
   return (
     <>
       {!hideNav && <Navbar cart={cart} />}
@@ -27,25 +28,45 @@ function Layout({ children, cart }) {
 
 function App() {
   const [cart, setCart] = useState([]);
+  const navigate = useNavigate(); // ⭐ added
 
   const addToCart = (item) => setCart((prev) => [...prev, item]);
-  const removeFromCart = (index) => setCart((prev) => prev.filter((_, i) => i !== index));
+  const removeFromCart = (index) =>
+    setCart((prev) => prev.filter((_, i) => i !== index));
   const clearCart = () => setCart([]);
 
   return (
-    <BrowserRouter>
-      <Layout cart={cart}>
-        <Routes>
-          <Route path="/"          element={<Login onLogin={() => window.location.replace("/dashboard")} />} />
-          <Route path="/register"  element={<Register onRegister={() => window.location.replace("/dashboard")} />} />
-          <Route path="/dashboard" element={<Dashboard addToCart={addToCart} cart={cart} />} />
-          <Route path="/cart"      element={<Cart cart={cart} onRemove={removeFromCart} />} />
-          <Route path="/payment"   element={<Payment cart={cart} onSuccess={clearCart} />} />
-          <Route path="/profile"   element={<Profile />} />
-          <Route path="/settings"  element={<Settings />} />
-        </Routes>
-      </Layout>
-    </BrowserRouter>
+    <Layout cart={cart}>
+      <Routes>
+        <Route
+          path="/"
+          element={<Login onLogin={() => navigate("/dashboard")} />}
+        />
+
+        <Route
+          path="/register"
+          element={<Register onRegister={() => navigate("/dashboard")} />}
+        />
+
+        <Route
+          path="/dashboard"
+          element={<Dashboard addToCart={addToCart} cart={cart} />}
+        />
+
+        <Route
+          path="/cart"
+          element={<Cart cart={cart} onRemove={removeFromCart} />}
+        />
+
+        <Route
+          path="/payment"
+          element={<Payment cart={cart} onSuccess={clearCart} />}
+        />
+
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/settings" element={<Settings />} />
+      </Routes>
+    </Layout>
   );
 }
 
