@@ -9,14 +9,7 @@ import Register from "./pages/Register";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Payment from "./pages/Payment";
-import Admin from "./pages/Admin";
-import AdminDashboard from "./pages/AdminDashboard";
-import UserManagement from "./pages/UserManagement";
-import ProductList from "./pages/ProductList";
-import ProductUpload from "./pages/ProductUpload";
-import SellerDashboard from "./pages/SellerDashboard";
 
-// Pages that have their own full-screen layout (no Navbar)
 const HIDE_NAVBAR = ["/", "/register"];
 
 function Layout({ children, cart }) {
@@ -35,49 +28,43 @@ function Layout({ children, cart }) {
 
 function App() {
   const [cart, setCart] = useState([]);
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // ⭐ added
 
-  const addToCart    = (item)  => setCart(prev => [...prev, item]);
-  const removeFromCart = (i)   => setCart(prev => prev.filter((_, idx) => idx !== i));
-  const clearCart    = ()      => setCart([]);
+  const addToCart = (item) => setCart((prev) => [...prev, item]);
+  const removeFromCart = (index) =>
+    setCart((prev) => prev.filter((_, i) => i !== index));
+  const clearCart = () => setCart([]);
 
   return (
     <Layout cart={cart}>
       <Routes>
-        {/* ── Auth ── */}
         <Route
           path="/"
-          element={
-            <Login
-              onLogin={(role) => {
-                if (role === "admin")  navigate("/admin");
-                else if (role === "seller") navigate("/seller");
-                else navigate("/dashboard");
-              }}
-            />
-          }
+          element={<Login onLogin={() => navigate("/dashboard")} />}
         />
+
         <Route
           path="/register"
-          element={<Register onRegister={() => navigate("/")} />}
+          element={<Register onRegister={() => navigate("/dashboard")} />}
         />
 
-        {/* ── Buyer ── */}
-        <Route path="/dashboard" element={<Dashboard addToCart={addToCart} cart={cart} />} />
-        <Route path="/cart"      element={<Cart cart={cart} onRemove={removeFromCart} />} />
-        <Route path="/payment"   element={<Payment cart={cart} onSuccess={clearCart} />} />
-        <Route path="/profile"   element={<Profile />} />
-        <Route path="/settings"  element={<Settings />} />
-        <Route path="/products"  element={<ProductList />} />
+        <Route
+          path="/dashboard"
+          element={<Dashboard addToCart={addToCart} cart={cart} />}
+        />
 
-        {/* ── Admin ── */}
-        <Route path="/admin"          element={<AdminDashboard />} />
-        <Route path="/admin/users"    element={<UserManagement />} />
-        <Route path="/admin/products" element={<ProductList />} />
+        <Route
+          path="/cart"
+          element={<Cart cart={cart} onRemove={removeFromCart} />}
+        />
 
-        {/* ── Seller ── */}
-        <Route path="/seller"        element={<SellerDashboard />} />
-        <Route path="/seller/upload" element={<ProductUpload />} />
+        <Route
+          path="/payment"
+          element={<Payment cart={cart} onSuccess={clearCart} />}
+        />
+
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>
   );
