@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { supabase } from "../lib/supabase";
 import "./Profile.css";
 
 const initialProfile = {
@@ -20,16 +21,44 @@ const recentActivity = [
 ];
 
 function Profile() {
+
   const [profile, setProfile] = useState(initialProfile);
   const [avatarSrc, setAvatarSrc] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [toast, setToast] = useState({ show: false, message: "" });
   const [form, setForm] = useState({ ...initialProfile });
+
   const avatarInputRef = useRef(null);
   const toastTimer = useRef(null);
 
   const fullName = `${profile.firstName} ${profile.lastName}`;
   const initials = `${profile.firstName[0] || ""}${profile.lastName[0] || ""}`.toUpperCase();
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  async function loadProfile() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return;
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userData.user.id)
+      .single();
+
+    if (data) {
+      const names = data.full_name?.split(" ") || [];
+
+      setProfile((prev) => ({
+        ...prev,
+        firstName: names[0] || "",
+        lastName: names[1] || "",
+        role: data.role || prev.role
+      }));
+    }
+  }
 
   function showToast(message) {
     clearTimeout(toastTimer.current);
@@ -51,7 +80,25 @@ function Profile() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  function handleSave() {
+  async function handleSave() {
+
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({
+        id: userData.user.id,
+        full_name: `${form.firstName} ${form.lastName}`,
+        role: form.role,
+      });
+
+    if (error) {
+      console.error(error);
+      showToast("Error saving profile");
+      return;
+    }
+
     setProfile({ ...form });
     closeModal();
     showToast("Profile updated successfully!");
@@ -62,13 +109,17 @@ function Profile() {
   }
 
   function handleAvatarChange(e) {
+
     const file = e.target.files[0];
     if (!file) return;
+
     const reader = new FileReader();
+
     reader.onload = (ev) => {
       setAvatarSrc(ev.target.result);
       showToast("Profile photo updated!");
     };
+
     reader.readAsDataURL(file);
     e.target.value = "";
   }
@@ -77,21 +128,20 @@ function Profile() {
     <div className="profile-page">
       <div className="profile-inner">
 
-        {/* Left Column */}
         <div className="profile-left">
+
           <div className="avatar-card">
-            <div className="avatar-ring" onClick={handleAvatarClick} title="Click to upload photo">
+
+            <div className="avatar-ring" onClick={handleAvatarClick}>
+
               <div className="avatar-circle">
                 {avatarSrc
                   ? <img src={avatarSrc} alt="avatar" className="avatar-img" />
                   : initials}
               </div>
-              <div className="avatar-upload-badge">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61zm1.414 1.06a.25.25 0 00-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 000-.354l-1.086-1.086zM11.189 6.25L9.75 4.81 3.428 11.13a.25.25 0 00-.064.108l-.65 2.274 2.274-.65a.25.25 0 00.108-.064L11.19 6.25z"/>
-                </svg>
-              </div>
+
             </div>
+
             <input
               ref={avatarInputRef}
               type="file"
@@ -101,84 +151,92 @@ function Profile() {
             />
 
             <h2 className="profile-name">{fullName}</h2>
+
             <span className="role-badge">{profile.role}</span>
+
             <p className="profile-course">{profile.course}</p>
+
             <p className="profile-year">{profile.year}</p>
 
             <div className="profile-divider" />
 
             <div className="profile-meta">
+
               <div className="meta-row">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
-                </svg>
                 <span>{profile.email}</span>
               </div>
+
               <div className="meta-row">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                  <line x1="16" y1="2" x2="16" y2="6"/>
-                  <line x1="8" y1="2" x2="8" y2="6"/>
-                  <line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
                 <span>Joined {profile.joined}</span>
               </div>
+
             </div>
 
-            <button className="edit-btn" onClick={openModal}>Edit Profile</button>
+            <button className="edit-btn" onClick={openModal}>
+              Edit Profile
+            </button>
+
           </div>
+
         </div>
 
-        {/* Right Column */}
         <div className="profile-right">
 
-          {/* Stats */}
           <div className="stats-row">
+
             <div className="stat-card">
               <span className="stat-value">{profile.orders}</span>
               <span className="stat-label">Total Orders</span>
             </div>
+
             <div className="stat-card accent">
               <span className="stat-value">₱{profile.spent.toLocaleString()}</span>
               <span className="stat-label">Total Spent</span>
             </div>
+
             <div className="stat-card">
               <span className="stat-value">🏆</span>
               <span className="stat-label">Top Buyer</span>
             </div>
+
           </div>
 
-          {/* Recent Activity */}
           <div className="section-card">
-            <div className="section-header">
-              <h3 className="section-title">Recent Orders</h3>
-              <button className="view-all-btn">View all →</button>
-            </div>
+
+            <h3 className="section-title">Recent Orders</h3>
+
             <div className="activity-list">
+
               {recentActivity.map((act, i) => (
-                <div
-                  key={i}
-                  className="activity-item"
-                  style={{ animationDelay: `${i * 80}ms` }}
-                >
+
+                <div key={i} className="activity-item">
+
                   <div className="activity-icon">{act.emoji}</div>
+
                   <div className="activity-info">
+
                     <span className="activity-name">{act.item}</span>
+
                     <span className="activity-date">{act.date}</span>
+
                   </div>
+
                   <span className="activity-price">₱{act.price.toLocaleString()}</span>
+
                 </div>
+
               ))}
+
             </div>
+
           </div>
 
-          {/* Account Details */}
           <div className="section-card">
-            <div className="section-header">
-              <h3 className="section-title">Account Details</h3>
-            </div>
+
+            <h3 className="section-title">Account Details</h3>
+
             <div className="details-grid">
+
               {[
                 { label: "Full Name", value: fullName },
                 { label: "Email", value: profile.email },
@@ -187,85 +245,53 @@ function Profile() {
                 { label: "Year Level", value: profile.year },
                 { label: "Member Since", value: profile.joined },
               ].map(({ label, value }) => (
+
                 <div key={label} className="detail-item">
+
                   <span className="detail-label">{label}</span>
+
                   <span className="detail-value">{value}</span>
+
                 </div>
+
               ))}
+
             </div>
+
           </div>
 
         </div>
+
       </div>
 
-      {/* Edit Profile Modal */}
       {modalOpen && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
+
+        <div className="modal-overlay">
+
           <div className="modal-box">
-            <div className="modal-header">
-              <h3 className="modal-title">Edit Profile</h3>
-              <button className="modal-close" onClick={closeModal}>×</button>
-            </div>
 
-            <div className="modal-form">
-              <div className="form-row-grid">
-                <div className="form-field">
-                  <label>First Name</label>
-                  <input name="firstName" value={form.firstName} onChange={handleFormChange} placeholder="First name" />
-                </div>
-                <div className="form-field">
-                  <label>Last Name</label>
-                  <input name="lastName" value={form.lastName} onChange={handleFormChange} placeholder="Last name" />
-                </div>
-              </div>
+            <h3>Edit Profile</h3>
 
-              <div className="form-field">
-                <label>Email</label>
-                <input name="email" type="email" value={form.email} onChange={handleFormChange} placeholder="Email address" />
-              </div>
+            <input name="firstName" value={form.firstName} onChange={handleFormChange} />
 
-              <div className="form-row-grid">
-                <div className="form-field">
-                  <label>Role</label>
-                  <select name="role" value={form.role} onChange={handleFormChange}>
-                    <option value="Student">Student</option>
-                    <option value="Faculty">Faculty</option>
-                    <option value="Staff">Staff</option>
-                  </select>
-                </div>
-                <div className="form-field">
-                  <label>Year Level</label>
-                  <select name="year" value={form.year} onChange={handleFormChange}>
-                    <option value="1st Year">1st Year</option>
-                    <option value="2nd Year">2nd Year</option>
-                    <option value="3rd Year">3rd Year</option>
-                    <option value="4th Year">4th Year</option>
-                    <option value="Graduate">Graduate</option>
-                  </select>
-                </div>
-              </div>
+            <input name="lastName" value={form.lastName} onChange={handleFormChange} />
 
-              <div className="form-field">
-                <label>Course</label>
-                <input name="course" value={form.course} onChange={handleFormChange} placeholder="Course / Program" />
-              </div>
+            <input name="email" value={form.email} onChange={handleFormChange} />
 
-              <div className="modal-actions">
-                <button className="btn-cancel" onClick={closeModal}>Cancel</button>
-                <button className="btn-save" onClick={handleSave}>Save Changes</button>
-              </div>
-            </div>
+            <button onClick={closeModal}>Cancel</button>
+
+            <button onClick={handleSave}>Save Changes</button>
+
           </div>
+
         </div>
+
       )}
 
-      {/* Toast Notification */}
       <div className={`toast-notification ${toast.show ? "toast-visible" : ""}`}>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm3.78-9.72a.75.75 0 00-1.06-1.06L6.75 9.19 5.28 7.72a.75.75 0 00-1.06 1.06l2 2a.75.75 0 001.06 0l4.5-4.5z"/>
-        </svg>
         {toast.message}
       </div>
+
     </div>
   );
 }
