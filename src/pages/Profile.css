@@ -19,6 +19,31 @@
   align-items: start;
 }
 
+/* ── Loading ── */
+.profile-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 16px;
+  color: #475569;
+  font-size: 14px;
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(74, 222, 128, 0.15);
+  border-top-color: #4ade80;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── Avatar Card ── */
 .avatar-card {
   background: rgba(255,255,255,0.03);
@@ -178,7 +203,6 @@
   gap: 16px;
 }
 
-/* Stats Row */
 .stats-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -227,7 +251,6 @@
   letter-spacing: 0.05em;
 }
 
-/* Section Cards */
 .section-card {
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.07);
@@ -264,7 +287,6 @@
 
 .view-all-btn:hover { opacity: 0.75; }
 
-/* Activity List */
 .activity-list {
   display: flex;
   flex-direction: column;
@@ -323,7 +345,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Details Grid */
 .details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -353,7 +374,7 @@
   color: #cbd5e1;
 }
 
-/* ── Edit Modal ── */
+/* ── Modal ── */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -490,6 +511,13 @@
   color: #e2e8f0;
 }
 
+.btn-cancel:disabled,
+.btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .btn-save {
   padding: 9px 22px;
   border-radius: 10px;
@@ -503,12 +531,12 @@
   transition: all 0.15s;
 }
 
-.btn-save:hover {
+.btn-save:hover:not(:disabled) {
   background: #4ade80;
   transform: translateY(-1px);
 }
 
-/* ── Toast Notification ── */
+/* ── Toast ── */
 .toast-notification {
   position: fixed;
   bottom: 28px;
@@ -534,6 +562,11 @@
 .toast-notification.toast-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+.toast-notification.toast-error {
+  background: #991b1b;
+  color: #fee2e2;
 }
 
 /* ── Responsive ── */
