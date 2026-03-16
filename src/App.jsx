@@ -13,13 +13,13 @@ import Payment from "./pages/Payment";
 
 const HIDE_NAVBAR = ["/", "/register"];
 
-function Layout({ children, cart }) {
+function Layout({ children, cart, user, onLogout }) {
   const location = useLocation();
   const hideNav = HIDE_NAVBAR.includes(location.pathname);
 
   return (
     <>
-      {!hideNav && <Navbar cart={cart} />}
+      {!hideNav && <Navbar cart={cart} user={user} onLogout={onLogout} />}
       <div className={hideNav ? "" : "page-offset"}>
         {children}
       </div>
@@ -29,24 +29,35 @@ function Layout({ children, cart }) {
 
 function App() {
   const [cart, setCart] = useState([]);
-  const navigate = useNavigate(); // ⭐ added
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
 
   const addToCart = (item) => setCart((prev) => [...prev, item]);
   const removeFromCart = (index) =>
     setCart((prev) => prev.filter((_, i) => i !== index));
   const clearCart = () => setCart([]);
 
+  const handleLogin = (userData) => {
+    setUser(userData);
+    navigate("/dashboard");
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    navigate("/");
+  };
+
   return (
-    <Layout cart={cart}>
+    <Layout cart={cart} user={user} onLogout={handleLogout}>
       <Routes>
         <Route
           path="/"
-          element={<Login onLogin={() => navigate("/dashboard")} />}
+          element={<Login onLogin={handleLogin} />}
         />
 
         <Route
           path="/register"
-          element={<Register onRegister={() => navigate("/dashboard")} />}
+          element={<Register onRegister={handleLogin} />}
         />
 
         <Route
@@ -64,8 +75,8 @@ function App() {
           element={<Payment cart={cart} onSuccess={clearCart} />}
         />
 
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route path="/profile" element={<Profile user={user} />} />
+        <Route path="/settings" element={<Settings user={user} />} />
       </Routes>
     </Layout>
   );
