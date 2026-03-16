@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "./supabaseclient.js";
-import Navbar from "./Navbar";
-import Login from "./Login";
-import Register from "./Register";
-import Dashboard from "./Dashboard";
-import Cart from "./Cart";
-import Payment from "./Payment";
-import Profile from "./Profile";
-import Settings from "./Settings";
+import Navbar from "./pages/Navbar";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import Cart from "./pages/Cart";
+import Payment from "./pages/Payment";
+import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
 
 function App() {
   const [user, setUser]       = useState(null);
