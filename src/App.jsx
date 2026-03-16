@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { supabase } from "./supabase.js";
 
 import Navbar from "./components/Navbar";
 import Dashboard from "./pages/Dashboard";
@@ -30,7 +30,19 @@ function Layout({ children, cart, user, onLogout }) {
 function App() {
   const [cart, setCart] = useState([]);
   const [user, setUser] = useState(null);
+  const [loadingSession, setLoadingSession] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.user) {
+        setUser(data.session.user);
+      }
+      setLoadingSession(false);
+    };
+    loadSession();
+  }, []);
 
   const addToCart = (item) => setCart((prev) => [...prev, item]);
   const removeFromCart = (index) =>
@@ -46,6 +58,10 @@ function App() {
     setUser(null);
     navigate("/");
   };
+
+  if (loadingSession) {
+    return <div className="loading-screen">Loading...</div>;
+  }
 
   return (
     <Layout cart={cart} user={user} onLogout={handleLogout}>

@@ -5,10 +5,12 @@ import "./Profile.css";
 function Profile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [avatarSrc, setAvatarSrc] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [toast, setToast] = useState({ show: false, message: "" });
   const [form, setForm] = useState({});
+  const [fallbackMode, setFallbackMode] = useState(false);
   const avatarInputRef = useRef(null);
   const toastTimer = useRef(null);
 
@@ -28,8 +30,9 @@ function Profile() {
         .single();
 
       if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
-        console.error('Error fetching profile:', error);
-        return;
+        console.error('Error fetching profile (falling back):', error);
+        setError(error.message || "Failed to load profile.");
+        setFallbackMode(true);
       }
 
       if (data) {
@@ -37,6 +40,9 @@ function Profile() {
         setForm(data);
         showToast("Profile loaded from Supabase.");
       } else {
+        // Reset fallback if we just created a profile
+        setFallbackMode(false);
+
         // Create default profile if not exists
         const defaultProfile = {
           user_id: user.id,
@@ -56,6 +62,10 @@ function Profile() {
 
         if (insertError) {
           console.error('Error creating profile:', insertError);
+          setError(insertError.message || "Failed to create profile.");
+          setFallbackMode(true);
+          setProfile(defaultProfile);
+          setForm(defaultProfile);
         } else {
           setProfile(defaultProfile);
           setForm(defaultProfile);
@@ -64,6 +74,7 @@ function Profile() {
       }
     } catch (err) {
       console.error('Error:', err);
+      setError(err?.message || "An unexpected error occurred while loading profile.");
     } finally {
       setLoading(false);
     }
@@ -74,8 +85,21 @@ function Profile() {
   }
 
   if (!profile) {
-    return <div className="profile-page"><div className="error">Unable to load profile. Please try logging in again.</div></div>;
+    return (
+      <div className="profile-page">
+        <div className="error">
+          {error || "Unable to load profile. Please try logging in again."}
+        </div>
+      </div>
+    );
   }
+
+  // If we're in fallback mode (Supabase table missing / permissions issue), show a notice.
+  const fallbackNotice = fallbackMode ? (
+    <div className="profile-error">
+      Unable to load saved profile from Supabase. You can still edit locally, but changes may not persist.
+    </div>
+  ) : null;
 
   const fullName = `${profile.first_name} ${profile.last_name}`;
   const initials = `${profile.first_name[0] || ""}${profile.last_name[0] || ""}`.toUpperCase();
@@ -148,6 +172,7 @@ function Profile() {
   return (
     <div className="profile-page">
       <div className="profile-inner">
+        {fallbackNotice}
 
         {/* Left Column */}
         <div className="profile-left">

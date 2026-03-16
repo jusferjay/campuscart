@@ -39,9 +39,8 @@ function Login({ onLogin }) {
         .single();
 
       if (profileError && profileError.code !== 'PGRST116') {
-        console.error('Error fetching profile:', profileError);
-        setError("Failed to load profile.");
-        return;
+        console.error('Error fetching profile (continuing anyway):', profileError);
+        // Keep going even if profile table isn't set up yet
       }
 
       setLoading(false);
