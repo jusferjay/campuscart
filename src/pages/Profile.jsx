@@ -1,35 +1,82 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { supabase } from "../supabase.js";
 import "./Profile.css";
 
-const initialProfile = {
-  firstName: "Campus",
-  lastName: "User",
-  email: "user@email.com",
-  role: "Student",
-  course: "BS Computer Science",
-  year: "3rd Year",
-  joined: "August 2023",
-  orders: 12,
-  spent: 8450,
-};
-
-const recentActivity = [
-  { emoji: "⌨️", item: "Mechanical Keyboard", date: "Feb 28", price: 1500 },
-  { emoji: "🖱️", item: "Wireless Mouse", date: "Feb 14", price: 500 },
-  { emoji: "💻", item: "Laptop Stand", date: "Jan 30", price: 900 },
-];
-
 function Profile() {
-  const [profile, setProfile] = useState(initialProfile);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [avatarSrc, setAvatarSrc] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [toast, setToast] = useState({ show: false, message: "" });
-  const [form, setForm] = useState({ ...initialProfile });
+  const [form, setForm] = useState({});
   const avatarInputRef = useRef(null);
   const toastTimer = useRef(null);
 
-  const fullName = `${profile.firstName} ${profile.lastName}`;
-  const initials = `${profile.firstName[0] || ""}${profile.lastName[0] || ""}`.toUpperCase();
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+        console.error('Error fetching profile:', error);
+        return;
+      }
+
+      if (data) {
+        setProfile(data);
+        setForm(data);
+      } else {
+        // Create default profile if not exists
+        const defaultProfile = {
+          user_id: user.id,
+          first_name: 'Campus',
+          last_name: 'User',
+          email: user.email,
+          role: 'Student',
+          course: 'BS Computer Science',
+          year: '3rd Year',
+          joined: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          orders: 0,
+          spent: 0,
+        };
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert(defaultProfile);
+
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+        } else {
+          setProfile(defaultProfile);
+          setForm(defaultProfile);
+        }
+      }
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="profile-page"><div className="loading">Loading profile...</div></div>;
+  }
+
+  if (!profile) {
+    return <div className="profile-page"><div className="error">Unable to load profile. Please try logging in again.</div></div>;
+  }
+
+  const fullName = `${profile.first_name} ${profile.last_name}`;
+  const initials = `${profile.first_name[0] || ""}${profile.last_name[0] || ""}`.toUpperCase();
 
   function showToast(message) {
     clearTimeout(toastTimer.current);
@@ -51,10 +98,33 @@ function Profile() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  function handleSave() {
-    setProfile({ ...form });
-    closeModal();
-    showToast("Profile updated successfully!");
+  async function handleSave() {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          first_name: form.first_name,
+          last_name: form.last_name,
+          email: form.email,
+          role: form.role,
+          course: form.course,
+          year: form.year,
+        })
+        .eq('user_id', profile.user_id);
+
+      if (error) {
+        console.error('Error updating profile:', error);
+        showToast("Error updating profile.");
+        return;
+      }
+
+      setProfile({ ...form });
+      closeModal();
+      showToast("Profile updated successfully!");
+    } catch (err) {
+      console.error('Error:', err);
+      showToast("Error updating profile.");
+    }
   }
 
   function handleAvatarClick() {
@@ -211,17 +281,17 @@ function Profile() {
               <div className="form-row-grid">
                 <div className="form-field">
                   <label>First Name</label>
-                  <input name="firstName" value={form.firstName} onChange={handleFormChange} placeholder="First name" />
+                  <input name="first_name" value={form.first_name || ""} onChange={handleFormChange} placeholder="First name" />
                 </div>
                 <div className="form-field">
                   <label>Last Name</label>
-                  <input name="lastName" value={form.lastName} onChange={handleFormChange} placeholder="Last name" />
+                  <input name="last_name" value={form.last_name || ""} onChange={handleFormChange} placeholder="Last name" />
                 </div>
               </div>
 
               <div className="form-field">
                 <label>Email</label>
-                <input name="email" type="email" value={form.email} onChange={handleFormChange} placeholder="Email address" />
+                <input name="email" type="email" value={form.email || ""} onChange={handleFormChange} placeholder="Email address" />
               </div>
 
               <div className="form-row-grid">
@@ -235,7 +305,7 @@ function Profile() {
                 </div>
                 <div className="form-field">
                   <label>Year Level</label>
-                  <select name="year" value={form.year} onChange={handleFormChange}>
+                  <select name="year" value={form.year || ""} onChange={handleFormChange}>
                     <option value="1st Year">1st Year</option>
                     <option value="2nd Year">2nd Year</option>
                     <option value="3rd Year">3rd Year</option>

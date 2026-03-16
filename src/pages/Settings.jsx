@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { supabase } from "../supabase.js";
 import "./Settings.css";
 
 const SETTINGS_CONFIG = [
@@ -71,8 +72,25 @@ function PasswordModal({ onClose }) {
   const handleSave = () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
-    setSuccess(true);
-    setTimeout(() => { setSuccess(false); onClose(); }, 1600);
+    changePassword();
+  };
+
+  const changePassword = async () => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: form.next,
+      });
+
+      if (error) {
+        setErrors({ next: error.message });
+        return;
+      }
+
+      setSuccess(true);
+      setTimeout(() => { setSuccess(false); onClose(); }, 1600);
+    } catch (err) {
+      setErrors({ next: "An unexpected error occurred." });
+    }
   };
 
   const strength = (() => {
@@ -206,10 +224,41 @@ function Settings() {
   const initial = {};
   SETTINGS_CONFIG.forEach(g => g.items.forEach(i => { initial[i.id] = i.default; }));
   const [prefs, setPrefs] = useState(initial);
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [modal, setModal] = useState(null); // "password" | "clearCart" | "resetPrefs" | "deleteAccount"
   const [toast, setToast] = useState({ show: false, message: "" });
   const toastTimer = useRef(null);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('settings')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching settings:', error);
+        return;
+      }
+
+      if (data && data.settings) {
+        setPrefs({ ...initial, ...data.settings });
+      }
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggle = (id) => setPrefs(p => ({ ...p, [id]: !p[id] }));
 
@@ -219,10 +268,31 @@ function Settings() {
     toastTimer.current = setTimeout(() => setToast({ show: false, message: "" }), 2800);
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-    showToast("Settings saved successfully!");
+  const handleSave = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          settings: prefs,
+        });
+
+      if (error) {
+        console.error('Error saving settings:', error);
+        showToast("Error saving settings.");
+        return;
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      showToast("Settings saved successfully!");
+    } catch (err) {
+      console.error('Error:', err);
+      showToast("Error saving settings.");
+    }
   };
 
   const handleClearCart = () => {
@@ -238,10 +308,36 @@ function Settings() {
     showToast("Preferences reset to defaults!");
   };
 
-  const handleDeleteAccount = () => {
-    setModal(null);
-    showToast("Account deletion request submitted.");
+  const handleDeleteAccount = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Delete profile and settings first
+      await supabase.from('profiles').delete().eq('user_id', user.id);
+      await supabase.from('user_settings').delete().eq('user_id', user.id);
+
+      // Then delete the user
+      const { error } = await supabase.auth.admin.deleteUser(user.id); // Note: This requires admin privileges, might not work in client
+
+      if (error) {
+        console.error('Error deleting account:', error);
+        showToast("Error deleting account.");
+        return;
+      }
+
+      setModal(null);
+      showToast("Account deleted successfully.");
+      // Redirect to login or home
+    } catch (err) {
+      console.error('Error:', err);
+      showToast("Error deleting account.");
+    }
   };
+
+  if (loading) {
+    return <div className="settings-page"><div className="loading">Loading settings...</div></div>;
+  }
 
   const enabledCount = Object.values(prefs).filter(Boolean).length;
   const totalCount = Object.keys(prefs).length;

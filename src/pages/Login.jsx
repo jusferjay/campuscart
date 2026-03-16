@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { supabase } from "../supabase.js";
 import "./Login.css";
 
 function Login({ onLogin }) {
@@ -9,7 +10,7 @@ function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
@@ -19,10 +20,22 @@ function Login({ onLogin }) {
     }
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        onLogin?.(data.user);
+      }
+    } catch (err) {
+      setError("An unexpected error occurred.");
+    } finally {
       setLoading(false);
-      onLogin?.();
-    }, 1200);
+    }
   };
 
   return (
