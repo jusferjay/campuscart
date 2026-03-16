@@ -35,6 +35,7 @@ function Profile() {
       if (data) {
         setProfile(data);
         setForm(data);
+        showToast("Profile loaded from Supabase.");
       } else {
         // Create default profile if not exists
         const defaultProfile = {
@@ -58,6 +59,7 @@ function Profile() {
         } else {
           setProfile(defaultProfile);
           setForm(defaultProfile);
+          showToast("Profile created and loaded from Supabase.");
         }
       }
     } catch (err) {

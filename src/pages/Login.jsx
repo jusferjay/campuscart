@@ -45,6 +45,10 @@ function Login({ onLogin }) {
       }
 
       setLoading(false);
+      console.log("✅ Supabase login successful", {
+        user: data.user,
+        profile,
+      });
       onLogin?.(profile || data.user);
     } catch (err) {
       console.error('Login error:', err);
