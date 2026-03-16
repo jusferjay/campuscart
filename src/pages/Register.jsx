@@ -89,6 +89,7 @@ function Register({ onRegister }) {
     ev.preventDefault();
     if (!validateStep2()) return;
     setLoading(true);
+    setErrors({});
 
     try {
       // 1. Sign up with Supabase Auth

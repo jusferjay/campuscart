@@ -216,24 +216,25 @@ function Settings({ onLogout, onClearCart }) {
   const fetchSettings = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) { setLoading(false); return; }
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("user_settings")
-        .select("settings")
+        .select("*")
         .eq("user_id", user.id)
         .single();
 
-      if (error && error.code !== "PGRST116") {
-        console.error("Settings fetch:", error);
-        return;
-      }
-
-      if (data?.settings) {
-        setPrefs(prev => ({ ...prev, ...data.settings }));
+      if (data) {
+        const settings = {};
+        SETTINGS_CONFIG.forEach(g => 
+          g.items.forEach(i => {
+            settings[i.id] = data[i.id] !== undefined ? data[i.id] : i.default;
+          })
+        );
+        setPrefs(settings);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Settings fetch:", err);
     } finally {
       setLoading(false);
     }
@@ -252,9 +253,12 @@ function Settings({ onLogout, onClearCart }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const updateData = {};
+      SETTINGS_CONFIG.forEach(g => g.items.forEach(i => { updateData[i.id] = prefs[i.id]; }));
+
       const { error } = await supabase
         .from("user_settings")
-        .upsert({ user_id: user.id, settings: prefs }, { onConflict: "user_id" });
+        .upsert({ user_id: user.id, ...updateData });
 
       if (error) throw error;
 
@@ -262,6 +266,7 @@ function Settings({ onLogout, onClearCart }) {
       setTimeout(() => setSaved(false), 2000);
       showToast("Settings saved!");
     } catch (err) {
+      console.error("Save error:", err);
       showToast("Failed to save settings.");
     }
   };
