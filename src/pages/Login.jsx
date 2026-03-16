@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { supabase } from "../supabase.js";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseclient.js";
 import "./Login.css";
 
 function Login({ onLogin }) {
@@ -9,49 +9,37 @@ function Login({ onLogin }) {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (!email || !password) {
-      setError("Please fill in all fields.");
-      return;
-    }
+    if (!email.trim()) { setError("Email is required."); return; }
+    if (!password)     { setError("Password is required."); return; }
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
-      if (error) {
-        setError(error.message);
+      if (authError) {
+        setError(authError.message);
+        setLoading(false);
         return;
       }
 
-      // Fetch user profile
-      const { data: profile, error: profileError } = await supabase
+      // Fetch profile
+      const { data: profile } = await supabase
         .from("profiles")
         .select("*")
         .eq("user_id", data.user.id)
         .single();
 
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error('Error fetching profile (continuing anyway):', profileError);
-        // Keep going even if profile table isn't set up yet
-      }
-
-      setLoading(false);
-      console.log("✅ Supabase login successful", {
-        user: data.user,
-        profile,
-      });
       onLogin?.(profile || data.user);
+      navigate("/dashboard");
     } catch (err) {
-      console.error('Login error:', err);
-      setError("An unexpected error occurred.");
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
@@ -69,7 +57,7 @@ function Login({ onLogin }) {
         <div className="left-hero">
           <h1>Your campus<br/>store, <span>simplified.</span></h1>
           <p>
-            Buy, sell, and discover everything you need for campus life — 
+            Buy, sell, and discover everything you need for campus life —
             all in one place, built for students.
           </p>
         </div>
@@ -82,13 +70,11 @@ function Login({ onLogin }) {
         <div className="login-glow" />
 
         <div className="login-card">
-
           <div className="card-header">
             <h2>Welcome back 👋</h2>
             <p>Sign in to your CampusCart account</p>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="login-error">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -99,44 +85,43 @@ function Login({ onLogin }) {
           )}
 
           <form className="login-form" onSubmit={handleSubmit}>
-
-            {/* EMAIL */}
             <div className="field-group">
               <label className="field-label">Email</label>
               <div className="input-wrap">
+                <svg className="input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                </svg>
                 <input
                   className="login-input"
                   type="email"
                   placeholder="you@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
                 />
               </div>
             </div>
 
-            {/* PASSWORD */}
             <div className="field-group">
               <label className="field-label">Password</label>
               <div className="input-wrap">
+                <svg className="input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
                 <input
                   className="login-input"
                   type={showPass ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                 />
-
-                <button
-                  type="button"
-                  className="toggle-pass"
-                  onClick={() => setShowPass(!showPass)}
-                >
+                <button type="button" className="toggle-pass" onClick={() => setShowPass(!showPass)}>
                   {showPass ? "Hide" : "Show"}
                 </button>
               </div>
             </div>
 
-            {/* LOGIN BUTTON */}
             <button
               className={`login-btn ${loading ? "loading" : ""}`}
               type="submit"
@@ -144,16 +129,12 @@ function Login({ onLogin }) {
             >
               {loading ? <span className="spinner" /> : "Sign In"}
             </button>
-
           </form>
 
           <p className="login-footer">
             Don't have an account?{" "}
-            <Link to="/register" className="register-link">
-              Create one →
-            </Link>
+            <Link to="/register" className="register-link">Create one →</Link>
           </p>
-
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { supabase } from "../supabaseclient";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseclient.js";
 import "./Register.css";
 
 const COURSES = [
@@ -26,9 +26,7 @@ function PasswordStrength({ password }) {
   const score = checks.filter(Boolean).length;
   const labels = ["", "Weak", "Fair", "Good", "Strong"];
   const colors = ["", "#ef4444", "#fb923c", "#facc15", "#4ade80"];
-
   if (!password) return null;
-
   return (
     <div className="strength-wrap">
       <div className="strength-bars">
@@ -40,9 +38,7 @@ function PasswordStrength({ password }) {
           />
         ))}
       </div>
-      <span className="strength-label" style={{ color: colors[score] }}>
-        {labels[score]}
-      </span>
+      <span className="strength-label" style={{ color: colors[score] }}>{labels[score]}</span>
     </div>
   );
 }
@@ -50,13 +46,15 @@ function PasswordStrength({ password }) {
 function Register({ onRegister }) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
-    name: "", email: "", password: "", confirm: "",
-    course: "", year: "",
+    firstName: "", lastName: "", email: "",
+    password: "", confirm: "", course: "", year: "",
   });
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const navigate = useNavigate();
 
   const set = (field) => (e) => {
     setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -65,10 +63,11 @@ function Register({ onRegister }) {
 
   const validateStep1 = () => {
     const e = {};
-    if (!form.name.trim())              e.name     = "Full name is required.";
-    if (!form.email.includes("@"))      e.email    = "Enter a valid email address.";
-    if (form.password.length < 8)       e.password = "Password must be at least 8 characters.";
-    if (form.password !== form.confirm) e.confirm  = "Passwords do not match.";
+    if (!form.firstName.trim()) e.firstName = "First name is required.";
+    if (!form.lastName.trim())  e.lastName  = "Last name is required.";
+    if (!form.email.includes("@")) e.email  = "Enter a valid email address.";
+    if (form.password.length < 8)  e.password = "Password must be at least 8 characters.";
+    if (form.password !== form.confirm) e.confirm = "Passwords do not match.";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -90,66 +89,106 @@ function Register({ onRegister }) {
     ev.preventDefault();
     if (!validateStep2()) return;
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        data: { full_name: form.name, course: form.course, year: form.year }
+
+    try {
+      // 1. Sign up with Supabase Auth
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            first_name: form.firstName,
+            last_name: form.lastName,
+          },
+        },
+      });
+
+      if (signUpError) {
+        setErrors({ email: signUpError.message });
+        setLoading(false);
+        return;
       }
-    });
-    setLoading(false);
-    if (error) { setErrors({ email: error.message }); return; }
-    alert("Account created successfully!");
-    onRegister?.();
+
+      // 2. Insert profile record
+      if (data.user) {
+        const { error: profileError } = await supabase.from("profiles").insert({
+          user_id: data.user.id,
+          first_name: form.firstName,
+          last_name: form.lastName,
+          email: form.email,
+          role: "Student",
+          course: form.course,
+          year: form.year,
+          joined: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+          orders: 0,
+          spent: 0,
+        });
+
+        if (profileError) {
+          console.error("Profile insert error (non-fatal):", profileError);
+        }
+      }
+
+      setSuccessMsg("Account created! You can now sign in.");
+      onRegister?.();
+      setTimeout(() => navigate("/"), 1800);
+    } catch (err) {
+      setErrors({ email: "An unexpected error occurred. Please try again." });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const passwordsMatch = form.confirm && form.password === form.confirm;
 
+  if (successMsg) {
+    return (
+      <div className="register-page">
+        <div className="register-right" style={{ gridColumn: "1/-1" }}>
+          <div className="register-card" style={{ alignItems: "center", textAlign: "center" }}>
+            <div style={{ fontSize: 48 }}>🎉</div>
+            <h2 style={{ color: "#f1f5f9", fontWeight: 800 }}>{successMsg}</h2>
+            <p style={{ color: "#475569" }}>Redirecting to login…</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="register-page">
 
-      {/* ── LEFT PANEL ── */}
+      {/* LEFT */}
       <div className="register-left">
         <div className="left-logo">
           <span className="brand-icon">🎒</span>
           <span className="brand-name">Campus<em>Cart</em></span>
         </div>
-
         <div className="left-hero">
           <h1>Join thousands<br/>of <span>students</span><br/>already trading.</h1>
           <p>List your old textbooks, find dorm essentials, and connect with your campus community.</p>
           <div className="left-perks">
-            <div className="perk">
-              <span className="perk-icon">📚</span>
-              <div>
-                <p className="perk-title">Buy &amp; Sell Textbooks</p>
-                <p className="perk-desc">Save money every semester</p>
+            {[
+              { icon: "📚", title: "Buy & Sell Textbooks", desc: "Save money every semester" },
+              { icon: "🏠", title: "Dorm Essentials", desc: "Furniture, appliances & more" },
+              { icon: "🔒", title: "Student Verified", desc: "Only real campus accounts" },
+            ].map((p) => (
+              <div className="perk" key={p.title}>
+                <span className="perk-icon">{p.icon}</span>
+                <div>
+                  <p className="perk-title">{p.title}</p>
+                  <p className="perk-desc">{p.desc}</p>
+                </div>
               </div>
-            </div>
-            <div className="perk">
-              <span className="perk-icon">🏠</span>
-              <div>
-                <p className="perk-title">Dorm Essentials</p>
-                <p className="perk-desc">Furniture, appliances &amp; more</p>
-              </div>
-            </div>
-            <div className="perk">
-              <span className="perk-icon">🔒</span>
-              <div>
-                <p className="perk-title">Student Verified</p>
-                <p className="perk-desc">Only real campus accounts</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
-
         <p className="left-footer">© 2026 CampusCart. All rights reserved.</p>
       </div>
 
-      {/* ── RIGHT PANEL ── */}
+      {/* RIGHT */}
       <div className="register-right">
         <div className="register-glow" />
-
         <div className="register-card">
 
           <div className="card-header">
@@ -166,11 +205,7 @@ function Register({ onRegister }) {
               return (
                 <div key={label} className="step-item">
                   <div className={`step-dot ${active ? "active" : ""} ${done ? "done" : ""}`}>
-                    {done ? (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 6L9 17l-5-5"/>
-                      </svg>
-                    ) : num}
+                    {done ? "✓" : num}
                   </div>
                   <span className={`step-label ${active ? "active" : ""}`}>{label}</span>
                   {i < 1 && <div className={`step-line ${done ? "done" : ""}`} />}
@@ -179,25 +214,34 @@ function Register({ onRegister }) {
             })}
           </div>
 
-          {/* Step 1 — Account */}
+          {/* Step 1 */}
           {step === 1 && (
             <form className="register-form" onSubmit={handleNext}>
-
-              <div className="field-group">
-                <label className="field-label">Full Name</label>
-                <div className="input-wrap">
-                  <svg className="input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                  </svg>
-                  <input
-                    className={`register-input ${errors.name ? "error" : ""}`}
-                    placeholder="Juan dela Cruz"
-                    value={form.name}
-                    onChange={set("name")}
-                    autoComplete="name"
-                  />
+              <div className="form-row-grid">
+                <div className="field-group">
+                  <label className="field-label">First Name</label>
+                  <div className="input-wrap">
+                    <input
+                      className={`register-input ${errors.firstName ? "error" : ""}`}
+                      placeholder="Juan"
+                      value={form.firstName}
+                      onChange={set("firstName")}
+                    />
+                  </div>
+                  {errors.firstName && <span className="field-error">{errors.firstName}</span>}
                 </div>
-                {errors.name && <span className="field-error">{errors.name}</span>}
+                <div className="field-group">
+                  <label className="field-label">Last Name</label>
+                  <div className="input-wrap">
+                    <input
+                      className={`register-input ${errors.lastName ? "error" : ""}`}
+                      placeholder="dela Cruz"
+                      value={form.lastName}
+                      onChange={set("lastName")}
+                    />
+                  </div>
+                  {errors.lastName && <span className="field-error">{errors.lastName}</span>}
+                </div>
               </div>
 
               <div className="field-group">
@@ -233,15 +277,7 @@ function Register({ onRegister }) {
                     autoComplete="new-password"
                   />
                   <button type="button" className="toggle-pass" onClick={() => setShowPass(p => !p)}>
-                    {showPass ? (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    ) : (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    )}
+                    {showPass ? "Hide" : "Show"}
                   </button>
                 </div>
                 <PasswordStrength password={form.password} />
@@ -263,33 +299,21 @@ function Register({ onRegister }) {
                     autoComplete="new-password"
                   />
                   <button type="button" className="toggle-pass" onClick={() => setShowConfirm(p => !p)}>
-                    {showConfirm ? (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    ) : (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    )}
+                    {showConfirm ? "Hide" : "Show"}
                   </button>
                 </div>
                 {errors.confirm && <span className="field-error">{errors.confirm}</span>}
               </div>
 
               <button className="register-btn" type="submit">
-                Continue
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
+                Continue →
               </button>
             </form>
           )}
 
-          {/* Step 2 — Profile */}
+          {/* Step 2 */}
           {step === 2 && (
             <form className="register-form" onSubmit={handleSubmit}>
-
               <div className="field-group">
                 <label className="field-label">Course / Program</label>
                 <div className="input-wrap select-wrap">
@@ -313,8 +337,7 @@ function Register({ onRegister }) {
                 <div className="year-grid">
                   {YEAR_LEVELS.map(y => (
                     <button
-                      key={y}
-                      type="button"
+                      key={y} type="button"
                       className={`year-btn ${form.year === y ? "active" : ""}`}
                       onClick={() => { setForm(f => ({ ...f, year: y })); setErrors(e => ({ ...e, year: "" })); }}
                     >
@@ -328,22 +351,15 @@ function Register({ onRegister }) {
               <div className="summary-box">
                 <p className="summary-title">Account Summary</p>
                 <div className="summary-rows">
-                  <div className="summary-row"><span>Name</span><span>{form.name}</span></div>
+                  <div className="summary-row"><span>Name</span><span>{form.firstName} {form.lastName}</span></div>
                   <div className="summary-row"><span>Email</span><span>{form.email}</span></div>
                 </div>
               </div>
 
               <div className="step2-actions">
                 <button type="button" className="back-btn" onClick={() => setStep(1)}>← Back</button>
-                <button className={`register-btn flex1 ${loading ? "loading" : ""}`} type="submit" disabled={loading}>
-                  {loading ? <span className="spinner" /> : (
-                    <>
-                      Create Account
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12h14M12 5l7 7-7 7"/>
-                      </svg>
-                    </>
-                  )}
+                <button className={`register-btn flex1`} type="submit" disabled={loading}>
+                  {loading ? <span className="spinner" /> : "Create Account →"}
                 </button>
               </div>
             </form>
